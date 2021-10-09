@@ -1,22 +1,15 @@
 package com.beetlsql.study.manager;
 
-import com.beetlsql.study.mapper.UserMapper;
-import com.beetlsql.study.pojo.UserEntity;
-import com.mysql.cj.jdbc.MysqlDataSource;
+import com.beetlsql.study.mapper.SysUserMapper;
+import com.beetlsql.study.pojo.SysUserEntity;
+import com.beetlsql.study.utils.SqlManagerUtil;
 import lombok.val;
-import org.beetl.sql.core.ConnectionSource;
-import org.beetl.sql.core.ConnectionSourceHelper;
-import org.beetl.sql.core.Interceptor;
 import org.beetl.sql.core.SQLManager;
-import org.beetl.sql.core.SQLManagerBuilder;
 import org.beetl.sql.core.SQLReady;
-import org.beetl.sql.core.UnderlinedNameConversion;
-import org.beetl.sql.core.db.H2Style;
+import org.beetl.sql.core.mapping.StreamData;
 import org.beetl.sql.core.page.DefaultPageRequest;
 import org.beetl.sql.core.page.PageRequest;
-import org.beetl.sql.ext.DebugInterceptor;
 
-import javax.sql.DataSource;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -31,14 +24,13 @@ public class SqlManager {
 
     public static void main(String[] args) {
 
-        val sqlManager = getSqlManager();
+        SQLManager sqlManager = SqlManagerUtil.getSqlManager();
         //这里，join函数会输出,并记录各个变量分别是1,2,3,4,5
         String sql = "select * from sys_user where id in ( #{join(ids)} )";
         List<Integer> list = Arrays.asList(1, 2, 3, 4, 5);
         final HashMap<Object, Object> paras = new HashMap<>();
         paras.put("ids", list);
-
-        List<UserEntity> users = sqlManager.execute(sql, UserEntity.class, paras);
+        List<SysUserEntity> users = sqlManager.execute(sql, SysUserEntity.class, paras);
         users.forEach(System.out::println);
 
         //使用Beetl模板语句
@@ -47,18 +39,17 @@ public class SqlManager {
                 "   and department_id=#{myDeptId}\t\n" +
                 "-- @}\n" +
                 "and name=#{myName}";
-
         final HashMap<Object, Object> map = new HashMap<>();
         map.put("myDeptId", 2);
         map.put("myName", "lj");
-        List<UserEntity> userEntities = sqlManager.execute(beetlSql, UserEntity.class, map);
+        List<SysUserEntity> userEntities = sqlManager.execute(beetlSql, SysUserEntity.class, map);
         userEntities.forEach(System.out::println);
 
         //JDBC SQL翻页查询
         String s = "select * from sys_user where department_id=?";
-        PageRequest<UserEntity> request = DefaultPageRequest.of(1, 5);
+        PageRequest<SysUserEntity> request = DefaultPageRequest.of(1, 5);
         SQLReady sqlReady = new SQLReady(s, 1);
-        val pr = sqlManager.execute(sqlReady, UserEntity.class, request);
+        val pr = sqlManager.execute(sqlReady, SysUserEntity.class, request);
 
 
         //模板SQL 翻页查询
@@ -66,7 +57,7 @@ public class SqlManager {
         val of = DefaultPageRequest.of(1, 3);
         final HashMap<Object, Object> hashMap = new HashMap<>();
         hashMap.put("department_id", 1);
-        val pageResult = sqlManager.executePageQuery(sq, UserEntity.class, hashMap, of);
+        val pageResult = sqlManager.executePageQuery(sq, SysUserEntity.class, hashMap, of);
         System.out.println(pageResult);
 
         /*
@@ -76,44 +67,41 @@ public class SqlManager {
 
         String s1 = "select #{page('*')} from (select count(1) total, department_id from sys_user group by department_id ) a";
         //PageRequest对象有一个方法是isTotalRequired，因此可以避免每次都查询，比如,构造PageRequest传入 false
-        PageRequest<UserEntity> of1 = DefaultPageRequest.of(1, 10);
-        sqlManager.executePageQuery(s1, UserEntity.class, null, of1);
+        PageRequest<SysUserEntity> of1 = DefaultPageRequest.of(1, 10);
+        sqlManager.executePageQuery(s1, SysUserEntity.class, null, of1);
 
-        final UserMapper mapper = sqlManager.getMapper(UserMapper.class);
-        final List<UserEntity> pageList = mapper.selectPage(DefaultPageRequest.of(1, 3));
+        final SysUserMapper mapper = sqlManager.getMapper(SysUserMapper.class);
+        final List<SysUserEntity> pageList = mapper.selectPage(DefaultPageRequest.of(1, 3));
         pageList.forEach(System.out::println);
 
         //或者使用pageTag
-        final List<UserEntity> pageTagList = mapper.selectPageTag(DefaultPageRequest.of(1, 2));
+        final List<SysUserEntity> pageTagList = mapper.selectPageTag(DefaultPageRequest.of(1, 2));
         pageTagList.forEach(System.out::println);
 
         //为了提高性能,BeetlSQL提供了pageIgnoreTag 标签函数，在求总数的时候忽略order by
-        final List<UserEntity> selectPageIgnoreTagList = mapper.selectPageIgnoreTag(DefaultPageRequest.of(1, 3));
+        final List<SysUserEntity> selectPageIgnoreTagList = mapper.selectPageIgnoreTag(DefaultPageRequest.of(1, 3));
         selectPageIgnoreTagList.forEach(System.out::println);
 
+        //Stream查询
+        // 对于某些查询，结果集包含大量数据，如果一次性返回，可能导致内存益处，可以使用stream查询
+        /*
+         * public StreamData stream(SqlId sqlId, Class clazz, Object paras) 查询sql文件，返回StreamData对象
+         * public StreamData streamExecute(String sqlTemplate, Class clazz,Object para) 查询sql模板。返回Stream对象
+         * public StreamData streamExecute(SQLReady p, Class clazz) 直接使用jdbc sql查询
+         * 需要注意的是，必须在事物上下文里遍历streamData，这是因为StreamData已经脱离了BeetlSQL，但包含了jdbc链接用于加载数据，因此期望事物来自动关闭数据库链接
+         */
 
-    }
+        SQLReady sqlReady1 = new SQLReady("select * from sys_user");
+        StreamData<SysUserEntity> streamData = sqlManager.streamExecute(sqlReady1, SysUserEntity.class);
+//        streamData.foreach(System.out::println);
+//        streamData.foreach(userEntity -> {
+//        });
 
+/*        UserEntity userEntity = new UserEntity();
+        userEntity.setName("aa");
+        userEntity.setAge(12);
+        userEntity.setCreateDate(new Date());
+        sqlManager.insert(userEntity);*/
 
-    public static DataSource dataSource() {
-        MysqlDataSource source = new MysqlDataSource();
-        source.setUrl("jdbc:mysql://localhost:3306/beetlsql?useUnicode=true&characterEncoding=utf8&allowMultiQueries=true&autoReconnect=true&nullCatalogMeansCurrent=true&useSSL=false&serverTimezone=Asia/Shanghai");
-        source.setUser("root");
-        source.setPassword("plaxyy0708");
-        return source;
-    }
-
-    public static SQLManager getSqlManager() {
-        val dataSource = dataSource();
-        ConnectionSource source = ConnectionSourceHelper.getSingle(dataSource);
-        //source是唯一必须的参数，其他参数都有默认值
-        SQLManagerBuilder builder = new SQLManagerBuilder(source);
-        //设置NameConversion，这里数据库命名采用下划线风格，使用UnderlinedNameConversion
-        builder.setNc(new UnderlinedNameConversion());
-        //设置一个拦截器，输出debug日志，包含了sql语句和执行参数，执行时间
-        builder.setInters(new Interceptor[]{new DebugInterceptor()});
-        //设置数据库分隔，必须跟数据库一样
-        builder.setDbStyle(new H2Style());
-        return builder.build();
     }
 }

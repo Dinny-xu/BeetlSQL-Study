@@ -1,15 +1,25 @@
 package com.beetlsql.study.pojo;
 
 import lombok.Data;
-import org.beetl.sql.annotation.entity.AutoID;
 import org.beetl.sql.annotation.entity.Table;
 
+import java.util.Date;
+
 @Data
-@Table(name="sys_user")
+@Table(name = "user")
 public class UserEntity {
 
-    @AutoID
-    private Integer id;
+    //    @AssignID("")
+//    @AssignID("snowflake")
+//    @AutoID
+    private String id;
+
     private String name;
-    private Integer departmentId;
+
+    private Integer age;
+
+    private Date createDate;
+
+    private int deleteFlag;
+
 }
