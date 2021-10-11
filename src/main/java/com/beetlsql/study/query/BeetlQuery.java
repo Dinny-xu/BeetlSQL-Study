@@ -6,6 +6,7 @@ import com.beetlsql.study.mapper.UserMapper;
 import com.beetlsql.study.pojo.UserEntity;
 import com.beetlsql.study.utils.SqlManagerUtil;
 import org.beetl.sql.core.SQLManager;
+import org.beetl.sql.core.page.PageResult;
 import org.beetl.sql.core.query.LambdaQuery;
 import org.beetl.sql.core.query.Query;
 import org.beetl.sql.core.query.interfacer.StrongValue;
@@ -200,9 +201,9 @@ public class BeetlQuery {
          *     }
          */
 
-        List<UserEntity> select3 = lambdaQuery.andEq(UserEntity::getDeleteFlag, 0)
-                .andLike(UserEntity::getName, filterLikeEmpty(userName)).select();
-        select3.forEach(System.out::println);
+//        List<UserEntity> select3 = lambdaQuery.andEq(UserEntity::getDelFlag, 0)
+//                .andLike(UserEntity::getName, filterLikeEmpty(userName)).select();
+//        select3.forEach(System.out::println);
 
 
         /*
@@ -244,7 +245,8 @@ public class BeetlQuery {
          * delete操作非常简单，拼接好条件，调用delete方法即可；返回影响的行数。
          */
 
-        lambdaQuery.andEq(UserEntity::getDeleteFlag, 1).delete();
+        lambdaQuery.andEq(UserEntity::getDelFlag, 1).delete();
+        mapper.createLambdaQuery().andEq(UserEntity::getDelFlag, 1).delete();
 
         /*
          * single查询和unique
@@ -254,14 +256,70 @@ public class BeetlQuery {
          * single查询，查询出一条，如果没有，返回null；
          */
 
-        Object single = lambdaQuery.andEq(UserEntity::getId, 1).single();
+        // lambdaQuery 执行 lambdaQuery.andEq(UserEntity::getDelFlag, 1).delete(); 后会缓存SQL 。后续的lambdaQuery在执行时可能会拼接上去
+        /*
+         * 例如 执行 lambdaQuery.andEq(UserEntity::getDelFlag, 1).delete();
+         *
+         * 以下  Object single = lambdaQuery.andEq(UserEntity::getId, 1).single(); 打印出来的SQL 会拼接 del_flag = ?
+         *
+         * 查看源码发现sql的缓存没有清除
+         *
+         * 以下三种查询方式：
+         *      lambdaQuery 会存在这个问题
+         *      mapper.createLambdaQuery() 不会存在这个问题
+         *      query 不会存在这个问题
+         */
+
+        // 查看SQL 发现 没有设定del_flag 条件。为什么会拼接，原因上面已讲清除
+        Object single = lambdaQuery.andEq(UserEntity::getId, 1).single();// SELECT * FROM `user` WHERE `del_flag` = ? AND `id` = ? limit 0 , 1
         System.out.println(single);
 
-        Object single1 = mapper.createLambdaQuery().andEq(UserEntity::getId, 1).single();
+        Object single1 = mapper.createLambdaQuery().andEq(UserEntity::getId, 1).single(); // SELECT * FROM `user` WHERE `id` = ? limit 0 , 1
         System.out.println(single1);
 
-        Object one = query.andEq("id", 1).single();
+        Object one = query.andEq("id", 1).single(); // SELECT * FROM `user` WHERE `id` = ? limit 0 , 1
         System.out.println(one);
+
+        Object unique = lambdaQuery.andEq(UserEntity::getId, 1).unique(); // SELECT * FROM `user` WHERE `id` = ? limit 0 , 2
+        System.out.println(unique);
+
+        // COUNT查询
+        //SQL：	 SELECT COUNT(1) FROM `user` WHERE `name` = ? OR `id` = ? limit 0 , 10
+        //参数：	 [new name, 1637]
+        long dddd = lambdaQuery.andEq(UserEntity::getName, "dddd").orEq(UserEntity::getId, 5).limit(0, 1).count();
+        System.out.println(dddd);
+
+        long count = query.andEq("name", "dddd").orEq("id", 5).limit(1, 1).count();
+        System.out.println(count);
+
+
+        //GROUP分组查询和Having子句
+        // SELECT * FROM `user` WHERE `id` IN(1637, 1639, 1640 ) GROUP BY name
+        List<UserEntity> select3 = mapper.createLambdaQuery().andIn("id", Arrays.asList(1, 2, 3, 4, 5, 6)).groupBy("name").select();
+        select3.forEach(System.out::println);
+
+        //在分组查询之后，我们可能还要进行having筛选，只需要在后面调用having方法，传入条件即可。
+        //SELECT * FROM `user` WHERE `id` IN( 1637, 1639, 1640 ) GROUP BY name HAVING `create_time` IS NOT NULL
+        List<UserEntity> select4 = mapper
+                .createLambdaQuery()
+                .andIn("id", Arrays.asList(1, 2, 3, 4, 5, 6))
+                .groupBy("name")
+                .having(query.condition().andIsNotNull("create_date"))
+                .select();
+        select4.forEach(System.out::println);
+
+        //分页查询
+        List<UserEntity> select5 = query.andEq("name", "dddd")
+                .orEq("id", "1")
+                .limit(1, 2)
+                .select();
+        select5.forEach(System.out::println);
+
+
+        // Page分页查询
+        Query<UserEntity> query1 = query.andEq("del_flag", 0);
+        PageResult<UserEntity> page = query1.page(1, 2);
+        System.out.println(page);
 
 
     }

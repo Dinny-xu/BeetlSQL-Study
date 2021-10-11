@@ -20,6 +20,6 @@ public class UserEntity {
 
     private Date createDate;
 
-    private int deleteFlag;
+    private int delFlag;
 
 }
