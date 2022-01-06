@@ -5,14 +5,13 @@ import com.beetlsql.study.pojo.UserEntity;
 import com.beetlsql.study.utils.SqlManagerUtil;
 import org.beetl.sql.core.SQLManager;
 import org.beetl.sql.core.query.LambdaQuery;
-import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
+@RestController
 public class TestController {
-
 
     @GetMapping("test/beetl")
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Throwable.class)
@@ -28,5 +27,4 @@ public class TestController {
         System.out.println(single);
         return "ok";
     }
-
 }
